@@ -1,0 +1,20 @@
+name: sv-prediction
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - numpy==1.26.4
+  - pandas==2.2.2
+  - matplotlib==3.10.0
+  - seaborn==0.13.2
+  - scipy==1.14.1
+  - scikit-learn==1.6.1
+  - torch==2.0.1
+  - pyfaidx==0.8.1.2
+  - pyBigWig==0.3.22
+  - intervaltree==3.1.0
+  - joblib==1.4.2
+  - adjustText==1.3.0
