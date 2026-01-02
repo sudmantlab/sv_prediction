@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import pyfaidx
-from intervaltree import Interval, IntervalTree
+from intervaltree import IntervalTree
 import argparse
 import pickle
 
@@ -61,7 +61,7 @@ indel_insdel['END'] = indel_insdel['END'] - 1
 
 sv_counts = sv_insdel_inv['CHROM'].value_counts().to_dict()
 
-# Define a basic mapping from RefSeq accession to chromosome names
+# Define a mapping from RefSeq accession to chromosome names
 accession_to_chr = {
     'NC_000001.11': 'chr1', 
     'NC_000002.12': 'chr2', 
@@ -113,7 +113,7 @@ for (chrom, svt), g in indel_insdel.groupby(["CHROM", "SVTYPE"], dropna=False):
         t.addi(pos, end)
     small_trees[(chrom, svt)] = t
 
-# ---- SAVE ----
+# Save
 with open("big_trees.pkl", "wb") as f:
     pickle.dump(big_trees, f)
 
@@ -231,7 +231,7 @@ for chrom, L in chrom_lengths.items():
             continue
         picked.append(pos)
 
-    # nearest-breakpoint distances (for plotting)
+    # nearest-breakpoint distances
     arr = np.array(sorted(bp), dtype=int)
     distances[chrom] = []
     for pos in picked:
@@ -282,7 +282,6 @@ target = len(pos)
 neg_bal = neg.sample(n=target, random_state=42, replace=False)
 balanced_data = pd.concat([pos, neg_bal], ignore_index=True)
 
-# Shuffle
 balanced_data = balanced_data.sample(frac=1, random_state=42).reset_index(drop=True)
 
 print(f"Final counts — pos(1): {sum(balanced_data['label']==1)}, neg(0): {sum(balanced_data['label']==0)}")
@@ -295,8 +294,7 @@ dist_df = pd.DataFrame(dist_rows, columns=["chrom", "nearest_breakpoint_distance
 dist_csv = f"{species}/{species}_neg_nearest_breakpoint_distances_{window_abbr}kb.csv"
 dist_df.to_csv(dist_csv, index=False)
 print(f"[saved] {dist_csv}")
-    
-# plot histograms and save as PDF
+
 data = {chrom: [d for d in lst if d > 0] for chrom, lst in distances.items() if lst}
 n = len(data)
 fig, axes = plt.subplots(nrows=n, ncols=1, figsize=(10, 3 * n), squeeze=False)

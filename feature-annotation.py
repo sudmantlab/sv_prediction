@@ -27,7 +27,7 @@ print(f"window_abbr: {window_abbr}")
 input_file = f"{species}/{species}_balanced_data_{window_abbr}kb.csv"
 output_file = f"{species}/{species}_balanced_data_{window_abbr}kb_annotated.csv"
 
-# Define a basic mapping from RefSeq accession to chromosome names
+# Define a mapping from RefSeq accession to chromosome names
 accession_to_chr = {
     'NC_000001.11': 'chr1', 
     'NC_000002.12': 'chr2', 
@@ -63,18 +63,15 @@ chrom_list = [f'chr{chrom}' for chrom in chroms]
 
 one_hot_map = {'A': [1, 0, 0, 0], 'T': [0, 1, 0, 0], 'C': [0, 0, 1, 0], 'G': [0, 0, 0, 1], 'N': [0, 0, 0, 0]}
 
+
+
 ### SET UP ###
 balanced_data = pd.read_csv(input_file)
 print(f"balanced_data.shape: {balanced_data.shape}")
 print(balanced_data['label'].value_counts())
 
-# Sanity checks on the input table
-assert {'left_start','left_end','right_start','right_end','chrom','label','pos','end','sequence'}.issubset(balanced_data.columns)
-
-# Windows must be half-open and match sequence length
+# Windows half-open and match sequence length
 seq_len_ok = (balanced_data['left_end'] - balanced_data['left_start'] + balanced_data['right_end'] - balanced_data['right_start']) == balanced_data['sequence'].str.len()
-if not seq_len_ok.all():
-    raise ValueError("Window bounds do not match sequence length; expected 0-based half-open windows.")
 
 # Breakpoints should be integer points
 balanced_data['pos'] = balanced_data['pos'].astype(np.int64)
@@ -146,11 +143,11 @@ balanced_data['gc_content'] = balanced_data['sequence'].apply(calculate_gc_conte
 balanced_data.to_csv(output_file, index=False)
 print("balanced_data with GC content saved")
 
-# Ensure each chrom's SNP list is sorted numpy array (once)
+
+# SNPs
 snp_positions = {str(k): np.asarray(sorted(v), dtype=np.int64) for k, v in snp_positions.items()}
 snps_per_chrom = {key: len(snp_positions[key]) for key in snp_positions}
 
-# SNPs
 def count_snps_in_interval(chrom: str, start: int, end: int, snp_dict: dict) -> int:
     """
     Count SNPs in half-open interval [start, end) using binary search.
@@ -168,7 +165,6 @@ def apply_func_snp(row, snp_dict):
     c2 = count_snps_in_interval(row["chrom"], int(row["right_start"]), int(row["right_end"]), snp_dict)
     return c1 + c2
 
-# parallel map over lightweight dict records (faster than Series)
 records = balanced_data.to_dict("records")
 with Pool(processes=num_processes) as pool:
     metrics = pool.starmap(apply_func_snp, [(r, snp_positions) for r in records])
@@ -180,17 +176,17 @@ print("balanced_data snp counts saved")
 
 
 # Genes, exons, CDS
-def _build_feature_arrays(feature_type_df: pd.DataFrame):
+def _build_feature_arrays_genes(feature_type_df: pd.DataFrame):
     d = {}
     for seq_id, g in feature_type_df.groupby("SEQ_ID", dropna=False):
         d[seq_id] = (
             g["START"].to_numpy(dtype=np.int64),
-            g["END"].to_numpy(dtype=np.int64),   # inclusive
+            g["END"].to_numpy(dtype=np.int64), 
         )
     return d
 
 # distance from a point p to mulitple intervals
-def _min_dist_point_to_intervals(p: int, starts: np.ndarray, ends: np.ndarray):
+def _min_dist_point_to_intervals_genes(p: int, starts: np.ndarray, ends: np.ndarray):
     if starts.size == 0:
         return np.inf
     # If p < S -> S - p; if p > E -> p - E; else 0
@@ -209,22 +205,20 @@ def calculate_min_distances_gene(df_chunk, feature_arrays, chromosome_mapping):
 
         starts, ends = feature_arrays[seq_id]
 
-        # choose point(s)
         if int(row["label"]) == 1:
-            # SV row: minimum distance to either breakpoint
             p1 = int(row["pos"])
             p2 = int(row["end"])
-            d1 = _min_dist_point_to_intervals(p1, starts, ends)
-            d2 = _min_dist_point_to_intervals(p2, starts, ends)
+            d1 = _min_dist_point_to_intervals_genes(p1, starts, ends)
+            d2 = _min_dist_point_to_intervals_genes(p2, starts, ends)
             out.append(min(d1, d2))
         else:
             # background row: center point
             p = int(row["pos"])
-            out.append(_min_dist_point_to_intervals(p, starts, ends))
+            out.append(_min_dist_point_to_intervals_genes(p, starts, ends))
     return out
 
 def parallel_process_gene(df, func, feature_type_df, chromosome_mapping, n_cores):
-    feature_arrays = _build_feature_arrays(feature_type_df)  # build once
+    feature_arrays = _build_feature_arrays_genes(feature_type_df)
     df_split = np.array_split(df, n_cores)
     with Pool(n_cores) as pool:
         parts = pool.starmap(func, [(chunk, feature_arrays, chromosome_mapping) for chunk in df_split])
@@ -241,7 +235,6 @@ for feature in gene_feature_list:
     balanced_data, calculate_min_distances_gene, filtered, chr_to_accession, num_processes
     )
     tmp = np.asarray(tmp, dtype=float)
-    # clip to max window_left; treat inf/missing as window_left
     tmp = np.where(np.isfinite(tmp), np.minimum(tmp, window_left), window_left).astype(int)
     balanced_data[col] = tmp
 
@@ -255,11 +248,11 @@ def _build_repeat_arrays(repeat_type_df: pd.DataFrame):
     for seq_id, g in repeat_type_df.groupby("QUERY_SEQUENCE", dropna=False):
         d[seq_id] = (
             g["BEGIN"].to_numpy(dtype=np.int64),
-            g["END"].to_numpy(dtype=np.int64),   # assume inclusive
+            g["END"].to_numpy(dtype=np.int64), 
         )
     return d
 
-def _min_dist_point_to_intervals(p: int, starts: np.ndarray, ends: np.ndarray):
+def _min_dist_point_to_intervals_repeats(p: int, starts: np.ndarray, ends: np.ndarray):
     if starts.size == 0:
         return np.inf
     dist = np.where(p < starts, starts - p, np.where(p > ends, p - ends, 0))
@@ -279,12 +272,12 @@ def calculate_min_distances_repeats(df_chunk, repeat_arrays, chromosome_mapping)
         if int(row["label"]) == 1:
             p1 = int(row["pos"])
             p2 = int(row["end"])
-            d1 = _min_dist_point_to_intervals(p1, starts, ends)
-            d2 = _min_dist_point_to_intervals(p2, starts, ends)
+            d1 = _min_dist_point_to_intervals_repeats(p1, starts, ends)
+            d2 = _min_dist_point_to_intervals_repeats(p2, starts, ends)
             out.append(min(d1, d2))
         else:
             p = int(row["pos"])
-            out.append(_min_dist_point_to_intervals(p, starts, ends))
+            out.append(_min_dist_point_to_intervals_repeats(p, starts, ends))
     return out
 
 def parallel_process_repeats(df, func, repeat_type_df, chromosome_mapping, n_cores):
@@ -303,7 +296,6 @@ for repeat_type in repeat_type_list:
     balanced_data, calculate_min_distances_repeats, filtered_repeat_type_df, chr_to_accession, num_processes
     )
     tmp = np.asarray(tmp, dtype=float)
-    # clip to max window_left; treat inf/missing as window_left
     tmp = np.where(np.isfinite(tmp), np.minimum(tmp, window_left), window_left).astype(int)
     balanced_data[col] = tmp
 
@@ -317,7 +309,6 @@ def fetch_and_compute_phyloP(args):
     row, bw_path = args
     bw = pyBigWig.open(bw_path)
 
-    # get scores for both flanks (use ints for bigWig API)
     ls, le = int(row["left_start"]), int(row["left_end"])
     rs, re = int(row["right_start"]), int(row["right_end"])
     chrom = str(row["chrom"])
@@ -326,7 +317,6 @@ def fetch_and_compute_phyloP(args):
     right_vals = np.array(bw.values(chrom, rs, re))
     bw.close()
 
-    # concatenate and average
     scores = np.concatenate([left_vals, right_vals])
     if scores.size == 0:
         return 0.0
@@ -351,7 +341,7 @@ print("balanced_data with phyloP scores saved")
 
 recomb_by_chrom = {c: g.copy() for c, g in recomb.groupby('chrom')}
 
-def _weighted_avg_over_flanks(recomb_chr_df, L1, R1, L2, R2):
+def _weighted_avg_over_flanks_recomb(recomb_chr_df, L1, R1, L2, R2):
     if recomb_chr_df.empty: 
         return 0.0
     starts = recomb_chr_df["start"].to_numpy(np.int64)
@@ -377,7 +367,7 @@ def process_chunk_recomb(chunk):
         chrom = str(row["chrom"])
         L1,R1 = int(row["left_start"]),  int(row["left_end"])
         L2,R2 = int(row["right_start"]), int(row["right_end"])
-        avg_rate = _weighted_avg_over_flanks(recomb_by_chrom.get(chrom, pd.DataFrame()), L1,R1,L2,R2)
+        avg_rate = _weighted_avg_over_flanks_recomb(recomb_by_chrom.get(chrom, pd.DataFrame()), L1,R1,L2,R2)
         out.append(avg_rate)
     return out
 
@@ -426,7 +416,6 @@ def process_ccre_rows(rows, encode_data_by_chrom):
 
 def parallel_process_ccre(df, encode_data, num_cores):
     chunks = np.array_split(df.to_dict("records"), num_cores)
-    # pre-split cCREs by chromosome once
     encode_by_chrom = {chrom: g for chrom, g in encode_data.groupby("chrom")}
     with Pool(num_cores) as pool:
         results = pool.starmap(process_ccre_rows, [(chunk, encode_by_chrom) for chunk in chunks])
@@ -466,12 +455,11 @@ def process_chunk_dnase(chunk, dnase_by_chrom):
         a1 = _avg_dnase_over_interval(dnase_chr, L1, R1)
         a2 = _avg_dnase_over_interval(dnase_chr, L2, R2)
 
-        results.append((a1 + a2) / 2.0)  # simple mean of flank means
+        results.append((a1 + a2) / 2.0)
     return results
 
 def parallel_process_dnase(df, dnase_data, num_cores):
     chunks = np.array_split(df, num_cores)
-    # pre-split DNase by chromosome once
     dnase_by_chrom = {chrom: g for chrom, g in dnase_data.groupby("chrom")}
     with Pool(num_cores) as pool:
         results = pool.starmap(process_chunk_dnase, [(c, dnase_by_chrom) for c in chunks])
@@ -484,7 +472,7 @@ balanced_data.to_csv(output_file, index=False)
 print("balanced_data dnase saved")
 
 
-# TF peaks — simple average over both flanks
+# TF peaks
 def _avg_tf_over_interval(tf_chr_df: pd.DataFrame, L: int, R: int) -> float:
     if tf_chr_df.empty:
         return 0.0
@@ -511,12 +499,11 @@ def process_chunk_tf(chunk, tf_data_by_chrom):
         a1 = _avg_tf_over_interval(tf_chr, L1, R1)
         a2 = _avg_tf_over_interval(tf_chr, L2, R2)
 
-        results.append((a1 + a2) / 2.0)  # simple mean of flank means
+        results.append((a1 + a2) / 2.0)
     return results
 
 def parallel_process_tf(df, tf_data, num_cores):
     chunks = np.array_split(df, num_cores)
-    # pre-split by chromosome once
     tf_by_chrom = {chrom: g for chrom, g in tf_data.groupby("chrom")}
     with Pool(num_cores) as pool:
         results = pool.starmap(process_chunk_tf, [(c, tf_by_chrom) for c in chunks])
