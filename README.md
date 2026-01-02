@@ -17,3 +17,6 @@ Dependencies can be found in `environment.yml`.
 
 ## Data availability
 Structural variant calls were obtained from Phase 3 of the Human Genome Structural Variation Consortium (HGSVC3), using variants reported against the GRCh38 reference genome. Variant callsets included large insertions and deletions, large inversions, small indels, and SNPs. Genomic annotations were retrieved from the UCSC Genome Browser, including phyloP conservation scores, recombination rate estimates, RepeatMasker repeat annotations, candidate cis-regulatory elements (cCREs), DNase accessibility, and transcription factor ChIP–seq peak clusters. Reference genome sequences and gene annotations were obtained for GRCh38.  
+
+## Acknowledgements
+This work was supported by NIH National Institute of General Medicine award R35GM142916 to Peter H Sudmant. This work was also supported by the UC Berkeley Summer Undergraduate Research Fellowship (SURF) to Daven Lim.
