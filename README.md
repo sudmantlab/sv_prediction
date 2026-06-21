@@ -7,16 +7,28 @@ Structural variants (SVs) represent a major source of genetic diversity and play
 ## Repository structure
 `data-processing.py` extracts the positive and negative sets for training, and computes the number of variants within each context window.     
 `feature-annotation.py` annotates each sample with various curated genomic features, such as conservation scores, repeat content, and gene features.     
-`model-training-predictions.ipynb` trains and tests each model (CNN, random forest, logistic regression, and ensemble), and runs further analysis to compute feature importances of genomic annotations on model predictions.     
+`model-training-predictions.ipynb` trains and tests each model (CNN, random forest, logistic regression, and ensemble), and runs further analysis to compute feature importances of genomic annotations on model predictions and representational analyses on the CNN.       
 `motif-analysis.ipynb` performs analysis on the effects of various motifs on CNN predictions, such as non-canonical DNA structures, kmers of various composition, and homology.    
 `in-silico-mutagenesis.ipynb` performs in-silico mutagenesis on Alu-associated SVs and identifies important motifs involved, and compares findings with empirical observations.   
 `constraint-analysis.ipynb` explores relationships between model predictions and functional constraints, such as allele frequency, CADD-SV scores, pLI, and LOEUF scores.   
+`hprc_benchmark.ipynb` performs a benchmark of model performance on variants called on individual genomes from the Human Pangenome Reference Consortium (HPRC).   
 
 ## Dependencies
 Dependencies can be found in `environment.yml`.
 
 ## Data availability
-Structural variant calls were obtained from Phase 3 of the Human Genome Structural Variation Consortium (HGSVC3), using variants reported against the GRCh38 reference genome. Variant callsets included large insertions and deletions, large inversions, small indels, and SNPs. Genomic annotations were retrieved from the UCSC Genome Browser, including phyloP conservation scores, recombination rate estimates, RepeatMasker repeat annotations, candidate cis-regulatory elements (cCREs), DNase accessibility, and transcription factor ChIP–seq peak clusters. Reference genome sequences and gene annotations were obtained for GRCh38.  
+Structural variant calls were obtained from Phase 3 of the Human Genome Structural Variation Consortium (HGSVC3), using variants reported against the GRCh38 reference genome. Variant callsets included large insertions and deletions, large inversions, small indels, and SNPs. 
+
+HGSVC callset (for GRCh38): https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/data_collections/HGSVC3/release/Variant_Calls/1.0/GRCh38/
+
+Further benchmarks for the model were made using variants reported against the CHM13 reference which can also be found in HGSVC3, and variants in individual genomes from the Human Pangenome Reference Consortium (HPRC).
+
+HGSVC callset (for CHM13): https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/data_collections/HGSVC3/release/Variant_Calls/1.0/T2T-CHM13/
+
+HPRC callsets:
+https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=submissions/759B21AD-0ED8-4640-A433-7C92A57EA3D3--UW_EEE_SV_Calls/
+
+Genomic annotations were retrieved from the UCSC Genome Browser, including phyloP conservation scores, recombination rate estimates, RepeatMasker repeat annotations, candidate cis-regulatory elements (cCREs), DNase accessibility, and transcription factor ChIP–seq peak clusters. Genome annotations were obtained for the GRCh38 reference.  
 
 ## Acknowledgements
 This work was supported by NIH National Institute of General Medicine award R35GM142916 to Peter H Sudmant. This work was also supported by the UC Berkeley Summer Undergraduate Research Fellowship (SURF) to Daven Lim.
